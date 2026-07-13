@@ -188,12 +188,12 @@
                 .replace(/>/g, '&gt;');
         }
 
-        function buildFormattedPassage(text, bookId) {
-            const markerRegex = /(\d+)(?::(\d+))?/g;
+        function parseVerseSegments(text) {
+            const markerRegex = /(?<!\w)(\d{1,3})(?::(\d{1,3}))?(?=\s+(?:["“(<A-ZÀ-ÖØ-Ý]))/g;
             const matches = [...text.matchAll(markerRegex)];
 
             if (matches.length === 0) {
-                return `<div class="verse-line">${escapeHtml(text.trim())}</div>`;
+                return [];
             }
 
             const chapters = [];
@@ -224,6 +224,16 @@
 
             if (currentChapterData) {
                 chapters.push(currentChapterData);
+            }
+
+            return chapters;
+        }
+
+        function buildFormattedPassage(text, bookId) {
+            const chapters = parseVerseSegments(text);
+
+            if (chapters.length === 0) {
+                return `<div class="verse-line">${escapeHtml(text.trim())}</div>`;
             }
 
             return chapters.map(chapterData => `
@@ -240,41 +250,10 @@
         }
 
         function buildPlainTextPassage(text, bookId) {
-            const markerRegex = /(\d+)(?::(\d+))?/g;
-            const matches = [...text.matchAll(markerRegex)];
+            const chapters = parseVerseSegments(text);
 
-            if (matches.length === 0) {
+            if (chapters.length === 0) {
                 return text.trim();
-            }
-
-            const chapters = [];
-            let currentChapter = null;
-            let currentChapterData = null;
-
-            matches.forEach((match, index) => {
-                const hasChapterPrefix = Boolean(match[2]);
-                const chapter = hasChapterPrefix ? Number(match[1]) : currentChapter;
-                const verse = hasChapterPrefix ? Number(match[2]) : Number(match[1]);
-
-                if (chapter !== currentChapter) {
-                    if (currentChapterData) {
-                        chapters.push(currentChapterData);
-                    }
-                    currentChapter = chapter;
-                    currentChapterData = { chapter, verses: [] };
-                }
-
-                const contentStart = match.index + match[0].length;
-                const contentEnd = matches[index + 1]?.index ?? text.length;
-                const verseText = text.slice(contentStart, contentEnd).trim().replace(/\s+/g, ' ');
-
-                if (verseText) {
-                    currentChapterData.verses.push({ verse, text: verseText });
-                }
-            });
-
-            if (currentChapterData) {
-                chapters.push(currentChapterData);
             }
 
             return chapters.map(chapterData => {
