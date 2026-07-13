@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bible Downloader</title>
+    <style>
+        body { font-family: 'Times New Roman', serif; padding: 40px; line-height: 1.6; }
+        .content-container { column-count: 2; column-gap: 50px; }
+        .chapter-title { font-weight: bold; font-size: 2em; margin-bottom: 20px; border-bottom: 2px solid #000; }
+        .verse { margin-bottom: 8px; }
+        .verse-num { font-weight: bold; margin-right: 8px; color: #555; }
+        .verse-text { white-space: pre-wrap; font-family: inherit; }
+        
+        .controls { margin-bottom: 30px; padding: 20px; background: #f4f4f4; border-radius: 8px; }
+        @media print { .no-print { display: none; } body { padding: 0; } .content-container { column-count: 2; } }
+    </style>
+</head>
+<body>
+
+    <div class="no-print controls">
+        <label>Select Book:</label>
+        <select id="bookSelect"></select>
+
+        <label>Mode:</label>
+        <select id="fetchMode" onchange="updateMode()">
+            <option value="chapter">Chapter</option>
+            <option value="book">Entire Book</option>
+        </select>
+
+        <input type="number" id="chapterInput" placeholder="Chapter (e.g. 1)" value="1" style="width: 80px;">
+        <button onclick="fetchBible()">Load</button>
+        <button onclick="downloadText()" id="downloadBtn" disabled>Download Text</button>
+        <button onclick="window.print()">Print/Save to PDF</button>
+        <p><small>Using NIV translation. Select "Chapter" or "Entire Book".</small></p>
+    </div>
+
+    <div id="displayArea" class="content-container"></div>
+
+    <script>
+        const bookList = [
+            { id: 'Genesis', name: 'Genesis' },
+            { id: 'Exodus', name: 'Exodus' },
+            { id: 'Leviticus', name: 'Leviticus' },
+            { id: 'Numbers', name: 'Numbers' },
+            { id: 'Deuteronomy', name: 'Deuteronomy' },
+            { id: 'Joshua', name: 'Joshua' },
+            { id: 'Judges', name: 'Judges' },
+            { id: 'Ruth', name: 'Ruth' },
+            { id: '1 Samuel', name: '1 Samuel' },
+            { id: '2 Samuel', name: '2 Samuel' },
+            { id: '1 Kings', name: '1 Kings' },
+            { id: '2 Kings', name: '2 Kings' },
+            { id: '1 Chronicles', name: '1 Chronicles' },
+            { id: '2 Chronicles', name: '2 Chronicles' },
+            { id: 'Ezra', name: 'Ezra' },
+            { id: 'Nehemiah', name: 'Nehemiah' },
+            { id: 'Esther', name: 'Esther' },
+            { id: 'Job', name: 'Job' },
+            { id: 'Psalms', name: 'Psalms' },
+            { id: 'Proverbs', name: 'Proverbs' },
+            { id: 'Ecclesiastes', name: 'Ecclesiastes' },
+            { id: 'Song of Solomon', name: 'Song of Solomon' },
+            { id: 'Isaiah', name: 'Isaiah' },
+            { id: 'Jeremiah', name: 'Jeremiah' },
+            { id: 'Lamentations', name: 'Lamentations' },
+            { id: 'Ezekiel', name: 'Ezekiel' },
+            { id: 'Daniel', name: 'Daniel' },
+            { id: 'Hosea', name: 'Hosea' },
+            { id: 'Joel', name: 'Joel' },
+            { id: 'Amos', name: 'Amos' },
+            { id: 'Obadiah', name: 'Obadiah' },
+            { id: 'Jonah', name: 'Jonah' },
+            { id: 'Micah', name: 'Micah' },
+            { id: 'Nahum', name: 'Nahum' },
+            { id: 'Habakkuk', name: 'Habakkuk' },
+            { id: 'Zephaniah', name: 'Zephaniah' },
+            { id: 'Haggai', name: 'Haggai' },
+            { id: 'Zechariah', name: 'Zechariah' },
+            { id: 'Malachi', name: 'Malachi' },
+            { id: 'Matthew', name: 'Matthew' },
+            { id: 'Mark', name: 'Mark' },
+            { id: 'Luke', name: 'Luke' },
+            { id: 'John', name: 'John' },
+            { id: 'Acts', name: 'Acts' },
+            { id: 'Romans', name: 'Romans' },
+            { id: '1 Corinthians', name: '1 Corinthians' },
+            { id: '2 Corinthians', name: '2 Corinthians' },
+            { id: 'Galatians', name: 'Galatians' },
+            { id: 'Ephesians', name: 'Ephesians' },
+            { id: 'Philippians', name: 'Philippians' },
+            { id: 'Colossians', name: 'Colossians' },
+            { id: '1 Thessalonians', name: '1 Thessalonians' },
+            { id: '2 Thessalonians', name: '2 Thessalonians' },
+            { id: '1 Timothy', name: '1 Timothy' },
+            { id: '2 Timothy', name: '2 Timothy' },
+            { id: 'Titus', name: 'Titus' },
+            { id: 'Philemon', name: 'Philemon' },
+            { id: 'Hebrews', name: 'Hebrews' },
+            { id: 'James', name: 'James' },
+            { id: '1 Peter', name: '1 Peter' },
+            { id: '2 Peter', name: '2 Peter' },
+            { id: '1 John', name: '1 John' },
+            { id: '2 John', name: '2 John' },
+            { id: '3 John', name: '3 John' },
+            { id: 'Jude', name: 'Jude' },
+            { id: 'Revelation', name: 'Revelation' }
+        ];
+
+        const chapterCounts = {
+            'Genesis': 50,
+            'Exodus': 40,
+            'Leviticus': 27,
+            'Numbers': 36,
+            'Deuteronomy': 34,
+            'Joshua': 24,
+            'Judges': 21,
+            'Ruth': 4,
+            '1 Samuel': 31,
+            '2 Samuel': 24,
+            '1 Kings': 22,
+            '2 Kings': 25,
+            '1 Chronicles': 29,
+            '2 Chronicles': 36,
+            'Ezra': 10,
+            'Nehemiah': 13,
+            'Esther': 10,
+            'Job': 42,
+            'Psalms': 150,
+            'Proverbs': 31,
+            'Ecclesiastes': 12,
+            'Song of Solomon': 8,
+            'Isaiah': 66,
+            'Jeremiah': 52,
+            'Lamentations': 5,
+            'Ezekiel': 48,
+            'Daniel': 12,
+            'Hosea': 14,
+            'Joel': 3,
+            'Amos': 9,
+            'Obadiah': 1,
+            'Jonah': 4,
+            'Micah': 7,
+            'Nahum': 3,
+            'Habakkuk': 3,
+            'Zephaniah': 3,
+            'Haggai': 2,
+            'Zechariah': 14,
+            'Malachi': 4,
+            'Matthew': 28,
+            'Mark': 16,
+            'Luke': 24,
+            'John': 21,
+            'Acts': 28,
+            'Romans': 16,
+            '1 Corinthians': 16,
+            '2 Corinthians': 13,
+            'Galatians': 6,
+            'Ephesians': 6,
+            'Philippians': 4,
+            'Colossians': 4,
+            '1 Thessalonians': 5,
+            '2 Thessalonians': 3,
+            '1 Timothy': 6,
+            '2 Timothy': 4,
+            'Titus': 3,
+            'Philemon': 1,
+            'Hebrews': 13,
+            'James': 5,
+            '1 Peter': 5,
+            '2 Peter': 3,
+            '1 John': 5,
+            '2 John': 1,
+            '3 John': 1,
+            'Jude': 1,
+            'Revelation': 22
+        };
+
+        let currentContent = '';
+        let currentFileName = 'bible.txt';
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function updateMode() {
+            const mode = document.getElementById('fetchMode').value;
+            const chapterInput = document.getElementById('chapterInput');
+            chapterInput.disabled = mode === 'book';
+            chapterInput.style.opacity = mode === 'book' ? '0.5' : '1';
+        }
+
+        function loadBookList() {
+            const select = document.getElementById('bookSelect');
+            select.innerHTML = '<option value="">Select a book</option>';
+
+            bookList.forEach(book => {
+                const option = document.createElement('option');
+                option.value = book.id;
+                option.text = book.name;
+                select.appendChild(option);
+            });
+        }
+
+        async function fetchBible() {
+            const bookId = document.getElementById('bookSelect').value;
+            const mode = document.getElementById('fetchMode').value;
+            const chapter = document.getElementById('chapterInput').value.trim();
+            const display = document.getElementById('displayArea');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            if (!bookId) {
+                display.innerHTML = 'Please select a book from the list.';
+                downloadBtn.disabled = true;
+                return;
+            }
+
+            if (mode === 'chapter' && (!chapter || chapter <= 0)) {
+                display.innerHTML = 'Please enter a valid chapter number.';
+                downloadBtn.disabled = true;
+                return;
+            }
+
+            let passage;
+            if (mode === 'chapter') {
+                passage = `${bookId} ${chapter}`;
+                currentFileName = `${bookId} Chapter ${chapter}.txt`;
+            } else {
+                const chapters = chapterCounts[bookId];
+                if (!chapters) {
+                    display.innerHTML = 'Unable to determine the number of chapters for this book.';
+                    downloadBtn.disabled = true;
+                    return;
+                }
+                passage = `${bookId} 1-${chapters}`;
+                currentFileName = `${bookId} - Full Book.txt`;
+            }
+
+            display.innerHTML = 'Loading...';
+
+            try {
+                const response = await fetch(`https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&formatting=plain&version=NIV`);
+                if (!response.ok) {
+                    throw new Error('Bible API request failed');
+                }
+
+                const text = await response.text();
+                if (!text.trim()) {
+                    throw new Error('Received empty response from Bible API');
+                }
+
+                currentContent = text;
+                downloadBtn.disabled = false;
+                display.innerHTML = `<div class="chapter-title">${bookId}${mode === 'chapter' ? ' Chapter ' + chapter : ' - Full Book'}</div>`;
+                display.innerHTML += `<pre class="verse-text">${escapeHtml(text)}</pre>`;
+            } catch (err) {
+                display.innerHTML = 'Error loading content. Please ensure the requested chapter or book exists and try again.';
+                downloadBtn.disabled = true;
+            }
+        }
+
+        function downloadText() {
+            if (!currentContent) {
+                return;
+            }
+
+            const blob = new Blob([currentContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = currentFileName;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        loadBookList();
+        updateMode();
+    </script>
+</body>
+</html>
