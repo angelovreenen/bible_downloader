@@ -30,6 +30,15 @@
             <option value="book">Entire Book</option>
         </select>
 
+        <label>Translation:</label>
+        <select id="translationSelect">
+            <option value="NIV">NIV</option>
+            <option value="KJV">KJV</option>
+            <option value="ESV">ESV</option>
+            <option value="NKJV">NKJV</option>
+            <option value="NRSV">NRSV</option>
+        </select>
+
         <input type="number" id="chapterInput" placeholder="Chapter (e.g. 1)" value="1" style="width: 80px;">
         <button onclick="fetchBible()">Load</button>
         <button onclick="downloadText()" id="downloadBtn" disabled>Download Text</button>
@@ -288,6 +297,7 @@
             const bookId = document.getElementById('bookSelect').value;
             const mode = document.getElementById('fetchMode').value;
             const chapter = document.getElementById('chapterInput').value.trim();
+            const translation = document.getElementById('translationSelect').value;
             const display = document.getElementById('displayArea');
             const downloadBtn = document.getElementById('downloadBtn');
 
@@ -321,7 +331,7 @@
             display.innerHTML = 'Loading...';
 
             try {
-                const response = await fetch(`https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&formatting=plain&version=NIV`);
+                const response = await fetch(`https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&formatting=plain&version=${encodeURIComponent(translation)}`);
                 if (!response.ok) {
                     throw new Error('Bible API request failed');
                 }
