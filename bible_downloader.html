@@ -7,9 +7,12 @@
         body { font-family: 'Times New Roman', serif; padding: 40px; line-height: 1.6; }
         .content-container { column-count: 2; column-gap: 50px; }
         .chapter-title { font-weight: bold; font-size: 2em; margin-bottom: 20px; border-bottom: 2px solid #000; }
-        .verse { margin-bottom: 8px; }
-        .verse-num { font-weight: bold; margin-right: 8px; color: #555; }
-        .verse-text { white-space: pre-wrap; font-family: inherit; }
+        .chapter-block { break-inside: avoid-page; margin-bottom: 24px; }
+        .chapter-heading { font-size: 1.2em; font-weight: bold; margin: 0 0 10px; }
+        .verse-line { margin-bottom: 8px; line-height: 1.5; }
+        .verse-number { font-weight: bold; margin-right: 8px; color: #555; }
+        .verse-number sup { font-size: 0.75em; line-height: 0; vertical-align: super; }
+        .verse-text { white-space: normal; font-family: inherit; display: inline; }
         
         .controls { margin-bottom: 30px; padding: 20px; background: #f4f4f4; border-radius: 8px; }
         @media print { .no-print { display: none; } body { padding: 0; } .content-container { column-count: 2; } }
@@ -185,6 +188,104 @@
                 .replace(/>/g, '&gt;');
         }
 
+        function buildFormattedPassage(text, bookId) {
+            const markerRegex = /(\d+)(?::(\d+))?/g;
+            const matches = [...text.matchAll(markerRegex)];
+
+            if (matches.length === 0) {
+                return `<div class="verse-line">${escapeHtml(text.trim())}</div>`;
+            }
+
+            const chapters = [];
+            let currentChapter = null;
+            let currentChapterData = null;
+
+            matches.forEach((match, index) => {
+                const hasChapterPrefix = Boolean(match[2]);
+                const chapter = hasChapterPrefix ? Number(match[1]) : currentChapter;
+                const verse = hasChapterPrefix ? Number(match[2]) : Number(match[1]);
+
+                if (chapter !== currentChapter) {
+                    if (currentChapterData) {
+                        chapters.push(currentChapterData);
+                    }
+                    currentChapter = chapter;
+                    currentChapterData = { chapter, verses: [] };
+                }
+
+                const contentStart = match.index + match[0].length;
+                const contentEnd = matches[index + 1]?.index ?? text.length;
+                const verseText = text.slice(contentStart, contentEnd).trim().replace(/\s+/g, ' ');
+
+                if (verseText) {
+                    currentChapterData.verses.push({ verse, text: verseText });
+                }
+            });
+
+            if (currentChapterData) {
+                chapters.push(currentChapterData);
+            }
+
+            return chapters.map(chapterData => `
+                <div class="chapter-block">
+                    <div class="chapter-heading">${escapeHtml(`${bookId} ${chapterData.chapter}`)}</div>
+                    ${chapterData.verses.map(verse => `
+                        <div class="verse-line">
+                            <span class="verse-number"><strong><sup>${verse.verse}</sup></strong></span>
+                            <span class="verse-text">${escapeHtml(verse.text)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+
+        function buildPlainTextPassage(text, bookId) {
+            const markerRegex = /(\d+)(?::(\d+))?/g;
+            const matches = [...text.matchAll(markerRegex)];
+
+            if (matches.length === 0) {
+                return text.trim();
+            }
+
+            const chapters = [];
+            let currentChapter = null;
+            let currentChapterData = null;
+
+            matches.forEach((match, index) => {
+                const hasChapterPrefix = Boolean(match[2]);
+                const chapter = hasChapterPrefix ? Number(match[1]) : currentChapter;
+                const verse = hasChapterPrefix ? Number(match[2]) : Number(match[1]);
+
+                if (chapter !== currentChapter) {
+                    if (currentChapterData) {
+                        chapters.push(currentChapterData);
+                    }
+                    currentChapter = chapter;
+                    currentChapterData = { chapter, verses: [] };
+                }
+
+                const contentStart = match.index + match[0].length;
+                const contentEnd = matches[index + 1]?.index ?? text.length;
+                const verseText = text.slice(contentStart, contentEnd).trim().replace(/\s+/g, ' ');
+
+                if (verseText) {
+                    currentChapterData.verses.push({ verse, text: verseText });
+                }
+            });
+
+            if (currentChapterData) {
+                chapters.push(currentChapterData);
+            }
+
+            return chapters.map(chapterData => {
+                const lines = [`${bookId} ${chapterData.chapter}`];
+                chapterData.verses.forEach(verse => {
+                    lines.push(`${verse.verse} ${verse.text}`);
+                });
+                return lines.join('\n');
+            }).join('\n\n');
+        }
+
         function updateMode() {
             const mode = document.getElementById('fetchMode').value;
             const chapterInput = document.getElementById('chapterInput');
@@ -251,10 +352,9 @@
                     throw new Error('Received empty response from Bible API');
                 }
 
-                currentContent = text;
+                currentContent = buildPlainTextPassage(text, bookId);
                 downloadBtn.disabled = false;
-                display.innerHTML = `<div class="chapter-title">${bookId}${mode === 'chapter' ? ' Chapter ' + chapter : ' - Full Book'}</div>`;
-                display.innerHTML += `<pre class="verse-text">${escapeHtml(text)}</pre>`;
+                display.innerHTML = `<div class="chapter-title">${escapeHtml(bookId)}${mode === 'chapter' ? ' Chapter ' + escapeHtml(chapter) : ''}</div>${buildFormattedPassage(text, bookId)}`;
             } catch (err) {
                 display.innerHTML = 'Error loading content. Please ensure the requested chapter or book exists and try again.';
                 downloadBtn.disabled = true;
